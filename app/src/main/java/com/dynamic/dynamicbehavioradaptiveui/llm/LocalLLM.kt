@@ -1,8 +1,16 @@
 package com.dynamic.dynamicbehavioradaptiveui.llm
 
-// Mock local LLM placeholder - no actual AI implementation yet
-class LocalLLM {
-    suspend fun generateResponse(prompt: String): String {
-        return "Mock response for: $prompt"
-    }
+interface LocalLLM {
+    suspend fun generate(request: LLMRequest): LLMResponse
+    suspend fun generateStructured(request: LLMRequest): LLMResponse
+    fun isAvailable(): Boolean
+    fun modelInfo(): ModelInfo
 }
+
+data class ModelInfo(
+    val name: String,
+    val version: String,
+    val sizeBytes: Long? = null,
+    val parameters: Long? = null,
+    val capabilities: List<String> = emptyList()
+)
