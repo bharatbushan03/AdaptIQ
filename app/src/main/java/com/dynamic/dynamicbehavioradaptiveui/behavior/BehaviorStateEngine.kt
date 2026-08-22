@@ -20,6 +20,7 @@ class BehaviorStateEngine {
     )
 
     private val metrics = mutableMapOf<String, Metrics>()
+    private val coldStartStates = mutableMapOf<String, ColdStartState>()
 
     private val proficiencyThresholds = ProficiencyThresholds()
     private val frictionThresholds = FrictionThresholds()
@@ -47,12 +48,55 @@ class BehaviorStateEngine {
         val minSequenceRepeatsForFrequent: Int = 5
     )
 
+    data class ColdStartThresholds(
+        val minInteractionsForPhase2: Int = 5,
+        val minInteractionsForPhase3: Int = 20,
+        val confidenceAccumulationThreshold: Double = 0.5,
+        val decayHalfLifeMillis: Long = 600000L
+    )
+
+    data class AdaptationPhase(
+        val phase: ColdStartPhase,
+        val confidence: Double,
+        val accumulatedInteractions: Int
+    )
+
+    enum class ColdStartPhase {
+        PHASE_1_STABLE_DEFAULT,
+        PHASE_2_CONSERVATIVE_SHORTCUTS,
+        PHASE_3_PERSONALIZED_ADAPTIVE
+    }
+
     init {
         metrics["default"] = Metrics()
     }
 
-    fun updateState(sessionId: String, metrics: Metrics) {
+    data class ColdStartState(
+        val interactionCount: Int = 0,
+        val confidenceAccumulated: Double = 0.0,
+        val lastInteractionTime: Long = 0L
+    )
+
+    fun updateState(sessionId: String, metrics: Metrics, interactionTimestamp: Long = System.currentTimeMillis()) {
+        val existing = metrics[sessionId] ?: Metrics()
         this.metrics[sessionId] = metrics
+
+        val coldStart = coldStartStates[sessionId]
+        val updatedCount = (coldStart.interactionCount + 1).coerceAtLeast(0)
+        val elapsedSinceLast = interactionTimestamp - coldStart.lastInteractionTime
+        val decayFactor = if (elapsedSinceLast > 0) {
+            Math.pow(0.5, elapsedSinceLast / coldStart.decayHalfLifeMillis)
+        } else {
+            1.0
+        }
+        val decayedConfidence = coldStart.confidenceAccumulated * decayFactor
+        val newConfidence = decayedConfidence + 0.1
+
+        coldStartStates[sessionId] = coldStart.copy(
+            interactionCount = updatedCount,
+            confidenceAccumulated = newConfidence,
+            lastInteractionTime = interactionTimestamp
+        )
     }
 
     fun getCurrentState(sessionId: String): BehaviorState {
@@ -68,6 +112,39 @@ class BehaviorStateEngine {
             interactionFriction = friction,
             currentIntent = intent,
             workflowFamiliarity = familiarity
+        )
+    }
+
+    fun getCurrentAdaptationPhase(sessionId: String): AdaptationPhase {
+        val coldStart = coldStartStates[sessionId]
+        val interactionCount = coldStart.interactionCount
+        val confidence = coldStart.confidenceAccumulated
+
+        val phase: ColdStartPhase
+        when {
+            interactionCount < coldStartThresholds.minInteractionsForPhase2 -> {
+                phase = ColdStartPhase.PHASE_1_STABLE_DEFAULT
+            }
+            interactionCount < coldStartThresholds.minInteractionsForPhase3 -> {
+                phase = if (confidence >= coldStartThresholds.confidenceAccumulationThreshold) {
+                    ColdStartPhase.PHASE_2_CONSERVATIVE_SHORTCUTS
+                } else {
+                    ColdStartPhase.PHASE_1_STABLE_DEFAULT
+                }
+            }
+            else -> {
+                phase = ColdStartPhase.PHASE_3_PERSONALIZED_ADAPTIVE
+            }
+        }
+
+        return AdaptationPhase(phase = phase, confidence = confidence, accumulatedInteractions = interactionCount)
+    }
+
+    fun resetColdStart(sessionId: String) {
+        coldStartStates[sessionId] = ColdStartState(
+            interactionCount = 0,
+            confidenceAccumulated = 0.0,
+            lastInteractionTime = System.currentTimeMillis()
         )
     }
 

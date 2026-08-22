@@ -5,6 +5,10 @@ import com.dynamic.dynamicbehavioradaptiveui.behavior.BehaviorFeatureExtractor
 import com.dynamic.dynamicbehavioradaptiveui.behavior.BehaviorStateEngine
 import com.dynamic.dynamicbehavioradaptiveui.behavior.InteractionEvent
 import com.dynamic.dynamicbehavioradaptiveui.models.BehaviorState
+import com.dynamic.dynamicbehavioradaptiveui.behavior.ColdStartPhase
+import com.dynamic.dynamicbehavioradaptiveui.models.ProficiencyLevel
+import com.dynamic.dynamicbehavioradaptiveui.models.InteractionFriction
+import com.dynamic.dynamicbehavioradaptiveui.adaptation.AdaptationType
 import com.dynamic.dynamicbehavioradaptiveui.llm.LocalLLM
 import com.dynamic.dynamicbehavioradaptiveui.llm.LLMRequest
 import kotlinx.coroutines.Dispatchers
@@ -25,20 +29,43 @@ class AdaptiveUIEngine(
 
     private suspend fun adapt(sessionId: String, events: List<InteractionEvent>): AdaptiveUIState {
         val currentState = behaviorStateEngine.getCurrentState(sessionId)
-        val request = AdaptationRequest(
-            sessionId = sessionId,
-            currentBehaviorState = currentState,
-            interactionEvents = events
-        )
+        val phase = behaviorStateEngine.getCurrentAdaptationPhase(sessionId)
 
-        return if (shouldRequestLLM(request, currentState)) {
-            adaptWithLLM(request, currentState, events)
-        } else {
-            AdaptiveUIState(
+        val adaptationPhase = when (phase.phase) {
+            ColdStartPhase.PHASE_1_STABLE_DEFAULT -> AdaptiveUIState(
                 behaviorState = currentState,
-                currentAppState = AppState(sessionId = sessionId)
+                currentAppState = AppState(sessionId = sessionId),
+                isAdapting = false
             )
+            ColdStartPhase.PHASE_2_CONSERVATIVE_SHORTCUTS -> {
+                val conservativeAdaptation = applyConservativeShortcuts(currentState)
+                AdaptiveUIState(
+                    behaviorState = currentState,
+                    currentAppState = conservativeAdaptation.appState,
+                    isAdapting = false,
+                    pendingAdaptation = conservativeAdaptation.pendingAdaptation
+                )
+            }
+            ColdStartPhase.PHASE_3_PERSONALIZED_ADAPTIVE -> {
+                val request = AdaptationRequest(
+                    sessionId = sessionId,
+                    currentBehaviorState = currentState,
+                    interactionEvents = events
+                )
+
+                if (shouldRequestLLM(request, currentState)) {
+                    adaptWithLLM(request, currentState, events)
+                } else {
+                    AdaptiveUIState(
+                        behaviorState = currentState,
+                        currentAppState = AppState(sessionId = sessionId),
+                        isAdapting = false
+                    )
+                }
+            }
         }
+
+        return adaptationPhase
     }
 
     private fun shouldRequestLLM(request: AdaptationRequest, currentState: BehaviorState): Boolean {
@@ -274,4 +301,31 @@ class AdaptiveUIEngine(
             behaviorState = current
         )
     }
-}
+
+    private fun applyConservativeShortcuts(currentState: BehaviorState): AdaptiveUIState {
+        val showTooltips = currentState.proficiencyLevel == ProficiencyLevel.BEGINNER
+        val simplifiedLayout = showTooltips
+        val reduceDensity = currentState.interactionFriction == InteractionFriction.HIGH
+        val hideSecondary = reduceDensity
+
+        val adaptation = Adaptation(
+            id = java.util.UUID.randomUUID().toString(),
+            `type` = AdaptationType.LAYOUT_ADJUSTMENT,
+            description = "Conservative contextual shortcuts for emerging user behavior",
+            applyFn = { appState ->
+                appState.copy(activeAdaptations = emptyList())
+            },
+            revertFn = { appState -> appState },
+            confidence = 0.4,
+            expiresAt = System.currentTimeMillis() + 300000,
+            isReversible = true,
+            isSecuritySensitive = false
+        )
+
+        return AdaptiveUIState(
+            behaviorState = currentState,
+            currentAppState = AppState(sessionId = currentState.toString()),
+            pendingAdaptation = adaptation,
+            isAdapting = true
+        )
+    }
