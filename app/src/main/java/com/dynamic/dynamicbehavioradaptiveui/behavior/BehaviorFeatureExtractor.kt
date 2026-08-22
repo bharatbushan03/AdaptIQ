@@ -18,6 +18,9 @@ class BehaviorFeatureExtractor {
     private var totalTaskCompletionTime: Long = 0
     private var taskCompletionCount: Int = 0
     private var interactionErrorCount: Int = 0
+    private var shortcutUsageCount: Int = 0
+    private var adaptationAcceptanceCount: Int = 0
+    private var adaptationEffectivenessSum: Double = 0.0
 
     private data class WorkflowState(
         val hasSuccess: Boolean = false,
@@ -36,6 +39,8 @@ class BehaviorFeatureExtractor {
         updateTaskCompletion(event)
         updateInteractionErrors(event)
         updateScreenSequences(event)
+        updateShortcutUsage(event)
+        updateAdaptationAcceptance(event)
     }
 
     private fun updateFeatureUsage(event: InteractionEvent) {
@@ -108,6 +113,34 @@ class BehaviorFeatureExtractor {
         }
     }
 
+    private fun updateShortcutUsage(event: InteractionEvent) {
+        val action = event.action.lowercase()
+        val shortcutActions = listOf(
+            "shortcut_used",
+            "ctrl_press",
+            "cmd_press",
+            "quick_action",
+            "fast_navigation"
+        )
+        if (shortcutActions.any { action.startsWith(it) }) {
+            shortcutUsageCount++
+        }
+    }
+
+    private fun updateAdaptationAcceptance(event: InteractionEvent) {
+        val action = event.action.lowercase()
+        val adaptationActions = listOf(
+            "adaptation_accepted",
+            "adaptation_applied",
+            "feature_enabled",
+            "layout_accepted"
+        )
+        if (adaptationActions.any { action.contains(it) }) {
+            adaptationAcceptanceCount++
+            adaptationEffectivenessSum += if (event.success) 1.0 else 0.0
+        }
+    }
+
     private fun updateScreenSequences(event: InteractionEvent) {
         val currentScreen = event.screen
         val previous = event.previousScreen
@@ -166,7 +199,10 @@ class BehaviorFeatureExtractor {
             averageTaskCompletionTime = averageTaskCompletionTime,
             interactionErrorRate = interactionErrorRate,
             attemptsBeforeSuccessfulCompletion = attemptsBeforeSuccessfulCompletion,
-            frequentlyVisitedScreenSequences = screenSequences
+            frequentlyVisitedScreenSequences = screenSequences,
+            shortcutUsageCount = shortcutUsageCount,
+            adaptationAcceptanceCount = adaptationAcceptanceCount,
+            adaptationEffectivenessSum = adaptationEffectivenessSum
         )
     }
 

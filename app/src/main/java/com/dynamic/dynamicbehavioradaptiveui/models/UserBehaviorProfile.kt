@@ -13,5 +13,8 @@ data class UserBehaviorProfile(
     val averageTaskCompletionTime: Double = 0.0,
     val interactionErrorRate: Double = 0.0,
     val attemptsBeforeSuccessfulCompletion: Map<String, Int> = emptyMap(),
-    val frequentlyVisitedScreenSequences: List<List<String>> = emptyList()
+    val frequentlyVisitedScreenSequences: List<List<String>> = emptyList(),
+    val shortcutUsageCount: Int = 0,
+    val adaptationAcceptanceCount: Int = 0,
+    val adaptationEffectivenessSum: Double = 0.0
 )

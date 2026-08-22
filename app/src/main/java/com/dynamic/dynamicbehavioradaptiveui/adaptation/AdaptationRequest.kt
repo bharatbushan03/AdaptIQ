@@ -45,5 +45,6 @@ data class AppState(
     val primaryNavigation: String = "bottom_bar",
     val criticalControls: Set<String> = emptySet(),
     val activeAdaptations: List<Adaptation> = emptyList(),
-    val sessionId: String = ""
+    val sessionId: String = "",
+    val metrics: AdaptationMetrics = AdaptationMetrics()
 )

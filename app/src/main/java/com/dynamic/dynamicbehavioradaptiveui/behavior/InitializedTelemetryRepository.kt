@@ -1,5 +1,7 @@
 package com.dynamic.dynamicbehavioradaptiveui.behavior
 
+import com.dynamic.dynamicbehavioradaptiveui.models.AdaptationOutcome
+import com.dynamic.dynamicbehavioradaptiveui.models.AdaptationOutcomeDetermination
 import com.dynamic.dynamicbehavioradaptiveui.models.InteractionEvent
 import com.dynamic.dynamicbehavioradaptiveui.models.RoomInteractionEvent
 import com.dynamic.dynamicbehavioradaptiveui.models.InteractionEventDatabase
@@ -234,6 +236,50 @@ class InitializedTelemetryRepository(
                 workflowId = UUID.randomUUID().toString(),
                 success = true,
                 metadata = mapOf("features" to count.toString(), "features" to metadata?.toString() ?: "").toString()
+            )
+            db.interactionEventDao().insert(event)
+        }
+    }
+
+    override suspend fun recordAdaptationOutcome(outcome: AdaptationOutcome) {
+        withContext(Dispatchers.IO) {
+            val metadata = mapOf(
+                "adaptationId" to outcome.adaptationId,
+                "triggerReason" to outcome.triggerReason,
+                "uiChange" to outcome.uiChange,
+                "confidence" to outcome.confidence.toString(),
+                "outcome" to outcome.outcome.toString(),
+                "effectivenessScore" to outcome.effectivenessScore.toString(),
+                "taskCompletedAfter" to outcome.taskCompletedAfter.toString(),
+                "notes" to outcome.notes
+            ).toString()
+
+            val interactionsMetadata = outcome.userInteractionsAfter
+                .map { it.metadata }
+                .joinToString(",")
+
+            val event = RoomInteractionEvent(
+                eventId = UUID.randomUUID().toString(),
+                timestamp = outcome.timestamp,
+                sessionId = outcome.sessionId,
+                screen = "adaptation_outcome",
+                action = "adaptation_outcome",
+                target = outcome.outcome.toString(),
+                previousScreen = "",
+                duration = 0L,
+                workflowId = outcome.adaptationId,
+                success = outcome.outcome != AdaptationOutcomeDetermination.REVERT ? 1 : 0,
+                metadata = mapOf(
+                    "adaptationId" to outcome.adaptationId,
+                    "triggerReason" to outcome.triggerReason,
+                    "uiChange" to outcome.uiChange,
+                    "confidence" to outcome.confidence.toString(),
+                    "outcome" to outcome.outcome.toString(),
+                    "effectivenessScore" to outcome.effectivenessScore.toString(),
+                    "taskCompletedAfter" to outcome.taskCompletedAfter.toString(),
+                    "notes" to outcome.notes,
+                    "interactions" to interactionsMetadata
+                ).toString()
             )
             db.interactionEventDao().insert(event)
         }

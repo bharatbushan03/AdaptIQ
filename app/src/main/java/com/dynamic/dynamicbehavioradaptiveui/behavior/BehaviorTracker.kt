@@ -1,5 +1,6 @@
 package com.dynamic.dynamicbehavioradaptiveui.behavior
 
+import com.dynamic.dynamicbehavioradaptiveui.models.AdaptationOutcome
 import com.dynamic.dynamicbehavioradaptiveui.models.InteractionEvent
 
 interface BehaviorTracker {
@@ -15,4 +16,6 @@ interface BehaviorTracker {
     suspend fun trackInteractionError(screen: String, action: String, error: String, metadata: Map<String, String>?)
     suspend fun trackTaskCompletionTime(taskId: String, duration: Long, success: Boolean, metadata: Map<String, String>?)
     suspend fun trackFeatureUsageFrequency(feature: String, count: Int, metadata: Map<String, String>?)
+
+    suspend fun recordAdaptationOutcome(outcome: AdaptationOutcome)
 }
