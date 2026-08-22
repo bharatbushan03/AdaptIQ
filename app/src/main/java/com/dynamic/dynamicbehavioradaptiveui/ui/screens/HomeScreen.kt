@@ -1,14 +1,17 @@
 package com.dynamic.dynamicbehavioradaptiveui.ui.screens
 
-import androidx.compose.foundation.*;
-import androidx.compose.foundation.layout.*;
-import androidx.compose.material3.*;
-import androidx.compose.runtime.*;
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
+import com.dynamic.dynamicbehavioradaptiveui.adaptation.AdaptiveUIState
+import com.dynamic.dynamicbehavioradaptiveui.behavior.BehaviorState
+import com.dynamic.dynamicbehavioradaptiveui.models.ProficiencyLevel
+import com.dynamic.dynamicbehavioradaptiveui.models.WorkflowFamiliarity
 import com.dynamic.dynamicbehavioradaptiveui.ui.viewmodels.*
 import com.dynamic.dynamicbehavioradaptiveui.R
 
@@ -16,6 +19,7 @@ import com.dynamic.dynamicbehavioradaptiveui.R
 fun HomeScreen(navController: NavHostController = rememberNavController()) {
     // Fixed bottom navigation bar - does NOT move
     val selected by remember { mutableStateOf(0) }
+    val adaptiveState = remember { AdaptiveUIState() }
 
     Scaffold(
         topBar = {
@@ -130,6 +134,86 @@ fun HomeScreen(navController: NavHostController = rememberNavController()) {
                     Text("Appearance", style = MaterialTypography.bodySmall, color = Color.Gray)
                 }
             }
+
+            // Adaptive contextual shortcuts bar
+            ContextualShortcutBar(
+                state = adaptiveState,
+                onShortcutSelected = { shortcut ->
+                    // Handle shortcut selection
+                    println("Shortcut selected: $shortcut")
+                }
+            )
+
+            // Adaptive action group (shows based on behavior)
+            AdaptiveActionGroup(
+                state = adaptiveState,
+                actions = listOf(
+                    AdaptiveAction(
+                        label: "New Event",
+                        iconName: "calendar-event",
+                        contentDescription: "Create new calendar event",
+                        isAvailableFor: { behaviorState ->
+                            behaviorState.currentIntent == "repeated_workflow" &&
+                            behaviorState.proficiencyLevel != ProficiencyLevel.BEGINNER
+                        }
+                    ),
+                    AdaptiveAction(
+                        label: "New Task",
+                        iconName: "task-new",
+                        contentDescription: "Create new task",
+                        isAvailableFor: { behaviorState ->
+                            behaviorState.currentIntent == "repeated_workflow" ||
+                            behaviorState.workflowFamiliarity == WorkflowFamiliarity.FAMILIAR
+                        }
+                    )
+                )
+            )
+
+            // Contextual guidance card (appears on high friction)
+            ContextualGuidanceCard(
+                state = adaptiveState,
+                onDismiss = { /* dismiss card */ }
+            )
+
+            // Feature recommendation
+            FeatureRecommendation(
+                state = adaptiveState,
+                availableFeatures = listOf(
+                    FeatureRecommendationFeature(
+                        label: "Quick Add",
+                        iconName: "task-quick",
+                        contentDescription: "Quick task creation",
+                        intermediateSuitable: true,
+                        advancedSuitable: false
+                    ),
+                    FeatureRecommendationFeature(
+                        label: "Calendar Integration",
+                        iconName: "calendar-event",
+                        contentDescription: "Sync with calendar",
+                        intermediateSuitable: true,
+                        advancedSuitable: true
+                    ),
+                    FeatureRecommendationFeature(
+                        label: "Task Templates",
+                        iconName: "create",
+                        contentDescription: "Use task templates",
+                        intermediateSuitable: false,
+                        advancedSuitable: true
+                    )
+                ),
+                onFeatureSelected = { feature ->
+                    println("Feature selected: ${feature.label}")
+                }
+            )
+
+            // Information density controller
+            InformationDensityController(
+                state = adaptiveState,
+                onDensityChanged { density ->
+                    println("Density changed to: $density")
+                },
+                currentDensity: 120
+            )
         }
     }
 }
