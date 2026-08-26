@@ -21,10 +21,10 @@ class BehaviorStateEngine {
 
     private val metrics = mutableMapOf<String, Metrics>()
     private val coldStartStates = mutableMapOf<String, ColdStartState>()
-
-    private val proficiencyThresholds = ProficiencyThresholds()
-    private val frictionThresholds = FrictionThresholds()
-    private val familiarityThresholds = FamiliarityThresholds()
+    @Volatile
+    private var forceState: BehaviorState? = null
+    @Volatile
+    private var forcePhase: String? = null
 
     data class ProficiencyThresholds(
         val errorRateMaxForBeginner: Double = 0.3,
@@ -100,6 +100,8 @@ class BehaviorStateEngine {
     }
 
     fun getCurrentState(sessionId: String): BehaviorState {
+        if (forceState != null) return forceState!!
+
         val m = metrics[sessionId]?.let { it } ?: Metrics()
 
         val proficiency = inferProficiency(m)
@@ -116,6 +118,16 @@ class BehaviorStateEngine {
     }
 
     fun getCurrentAdaptationPhase(sessionId: String): AdaptationPhase {
+        if (forcePhase != null) {
+            val phaseWhen = when (forcePhase) {
+                "phase_1" -> ColdStartPhase.PHASE_1_STABLE_DEFAULT
+                "phase_2" -> ColdStartPhase.PHASE_2_CONSERVATIVE_SHORTCUTS
+                "phase_3" -> ColdStartPhase.PHASE_3_PERSONALIZED_ADAPTIVE
+                else -> ColdStartPhase.PHASE_1_STABLE_DEFAULT
+            }
+            return AdaptationPhase(phase = phaseWhen, confidence = 1.0, accumulatedInteractions = 0)
+        }
+
         val coldStart = coldStartStates[sessionId]
         val interactionCount = coldStart.interactionCount
         val confidence = coldStart.confidenceAccumulated

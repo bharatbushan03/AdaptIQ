@@ -1,11 +1,11 @@
 package com.dynamic.dynamicbehavioradaptiveui.adaptation
 
-import com.dynamic.dynamicbehavioradaptiveui.adaptation.PolicyValidator
+import com.dynamic.dynamicbehavioradaptiveui.adaptation.DemoMode
+import com.dynamic.dynamicbehavioradaptiveui.adaptation.DemoMode.DemoScenario
 import com.dynamic.dynamicbehavioradaptiveui.behavior.BehaviorFeatureExtractor
 import com.dynamic.dynamicbehavioradaptiveui.behavior.BehaviorStateEngine
 import com.dynamic.dynamicbehavioradaptiveui.behavior.InteractionEvent
 import com.dynamic.dynamicbehavioradaptiveui.models.BehaviorState
-import com.dynamic.dynamicbehavioradaptiveui.behavior.ColdStartPhase
 import com.dynamic.dynamicbehavioradaptiveui.models.ProficiencyLevel
 import com.dynamic.dynamicbehavioradaptiveui.models.InteractionFriction
 import com.dynamic.dynamicbehavioradaptiveui.adaptation.AdaptationType
@@ -18,8 +18,10 @@ class AdaptiveUIEngine(
     private val behaviorFeatureExtractor: BehaviorFeatureExtractor,
     private val behaviorStateEngine: BehaviorStateEngine,
     private val policyValidator: PolicyValidator = PolicyValidator(),
-    private val localLLM: LocalLLM
+    private val localLLM: LocalLLM,
+    adaptiveOptIn: Boolean = true
 ) {
+    private val adaptiveOptIn by lazy { adaptiveOptIn }
 
     suspend fun observeAndAdapt(sessionId: String, events: List<InteractionEvent>): AdaptiveUIState {
         return withContext(Dispatchers.Main) {
@@ -28,6 +30,15 @@ class AdaptiveUIEngine(
     }
 
     private suspend fun adapt(sessionId: String, events: List<InteractionEvent>): AdaptiveUIState {
+        if (!adaptiveOptIn) {
+            val currentState = behaviorStateEngine.getCurrentState(sessionId)
+            return AdaptiveUIState(
+                behaviorState = currentState,
+                currentAppState = AppState(sessionId = sessionId),
+                isAdapting = false
+            )
+        }
+        
         val currentState = behaviorStateEngine.getCurrentState(sessionId)
         val phase = behaviorStateEngine.getCurrentAdaptationPhase(sessionId)
 
@@ -69,6 +80,7 @@ class AdaptiveUIEngine(
     }
 
     private fun shouldRequestLLM(request: AdaptationRequest, currentState: BehaviorState): Boolean {
+        if (!adaptiveOptIn) return false
         val hasSignificantChanges = hasBehavioralChanges(request)
         val notAlreadyAdapting = request.interactionEvents.isNotEmpty()
         return hasSignificantChanges && notAlreadyAdapting
@@ -91,6 +103,10 @@ class AdaptiveUIEngine(
         currentState: BehaviorState,
         events: List<InteractionEvent>
     ): AdaptiveUIState {
+        if (DemoMode.isDemoMode()) {
+            return applyDemoAdaptation(currentState, DemoMode.getMockLLMRecommendation(currentState))
+        }
+
         return withContext(Dispatchers.Main) {
             val recommendation = requestLocalLLM(request, currentState, events)
             val validated = policyValidator.validateRecommendation(request, recommendation)
@@ -167,7 +183,62 @@ class AdaptiveUIEngine(
         }
     }
 
-    private fun generateLLMPrompt(
+    private fun applyDemoAdaptation(
+    currentState: BehaviorState,
+    mockRecommendation: (String, Double)
+): AdaptiveUIState {
+    val (recommendationText, confidence) = mockRecommendation
+    val adaptationType = when {
+        recommendationText.contains("tooltip") -> AdaptationType.LAYOUT_ADJUSTMENT
+        recommendationText.contains("navigation") -> AdaptationType.NAVIGATION_ENHANCEMENT
+        recommendationText.contains("widget") -> AdaptationType.WIDGET_REORDERING
+        recommendationText.contains("feature") -> AdaptationType.FEATURE_VISIBILITY
+        else -> AdaptationType.LAYOUT_ADJUSTMENT
+    }
+
+    val isReversible = true
+    val isSecuritySensitive = false
+
+    val adaptation = Adaptation(
+        id = "demo-adaptation-${System.currentTimeMillis()}",
+        `type` = adaptationType,
+        description = recommendationText,
+        applyFn = { appState ->
+            appState.copy(activeAdaptations = emptyList())
+        },
+        revertFn = { appState -> appState },
+        confidence = confidence,
+        expiresAt = System.currentTimeMillis() + 300000,
+        isReversible = isReversible,
+        isSecuritySensitive = isSecuritySensitive
+    )
+
+    val appState = AppState(sessionId = currentState.toString())
+
+    val canApply = policyValidator.validateCanApply(appState, adaptation)
+
+    if (!canApply) {
+        return AdaptiveUIState(
+            behaviorState = currentState,
+            currentAppState = appState,
+            pendingAdaptation = null
+        )
+    }
+
+    val result = applyAdaptation(adaptation, appState)
+
+    AdaptiveUIState(
+        behaviorState = currentState,
+        currentAppState = appState.copy(
+            activeAdaptations = result.postState?.activeAdaptations ?: emptyList()
+        ),
+        pendingAdaptation = adaptation,
+        isAdapting = true,
+        lastAdaptationTime = System.currentTimeMillis()
+    )
+}
+
+private fun generateLLMPrompt(
         request: AdaptationRequest,
         currentState: BehaviorState
     ): String {

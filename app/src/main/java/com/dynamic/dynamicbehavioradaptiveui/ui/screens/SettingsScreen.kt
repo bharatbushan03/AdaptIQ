@@ -6,11 +6,20 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dynamic.dynamicbehavioradaptiveui.R
+import com.dynamic.dynamicbehavioradaptiveui.storage.DataStorePreferences
+import com.dynamic.dynamicbehavioradaptiveui.ui.screens.PrivacyScreen
 
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(
+    context: androidx.compose.runtime.Context = LocalContext.current
+) {
     var theme by remember { mutableStateOf("Light") }
+    var adaptiveOptIn by remember { mutableStateOf(DataStorePreferences.isAdaptiveEnabled(context)) }
+    var showClearConfirmation by remember { mutableStateOf(false) }
+
+    val appContext = remember { context }
 
     Scaffold(
         topBar = {
@@ -69,20 +78,62 @@ fun SettingsScreen() {
                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
             )
 
-            // Adaptation mode
+            // Adaptation mode toggle
             OutlinedButton(
-                onClick = {},
+                onClick = {
+                    adaptiveOptIn = !adaptiveOptIn
+                    DataStorePreferences.setAdaptiveEnabled(appContext, adaptiveOptIn)
+                },
                 modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
             ) {
                 HStack(
                     modifier = Modifier.fillMaxWidth(),
                     contentPadding = 12.dp
                 ) {
-                    Text("Adaptive UI", style = MaterialTypography.bodyMedium)
+                    Text(
+                        text = stringResource(R.string.adaptive_opt_in_enabled),
+                        style = MaterialTypography.bodyMedium
+                    )
                     Spacer(modifier = Modifier.width(4.dp))
                     Icon(
-                        imageVector = androidx.compose.material.icons.FontAwesome5.ArrowRight,
-                        contentDescription = "Expand"
+                        imageVector = if (adaptiveOptIn) {
+                            androidx.compose.material.icons.FontAwesome5.Sun
+                        } else {
+                            androidx.compose.material.icons.FontAwesome5.Moon
+                        },
+                        contentDescription = if (adaptiveOptIn) "Adaptive UI enabled" else "Adaptive UI disabled"
+                    )
+                }
+            }
+
+            // Description text based on opt-in state
+            Text(
+                text = if (adaptiveOptIn)
+                    "The app will adapt to your usage patterns to improve your experience. You can opt-out at any time."
+                    else
+                    "Adaptive UI is disabled. The app will use a default, non-personalized layout.",
+                style = MaterialTypography.bodySmall,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+            )
+
+            // Demo mode toggle
+            OutlinedButton(
+                onClick = { DemoMode.stopDemo() },
+                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+            ) {
+                HStack(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = 12.dp
+                ) {
+                    Text("Demo Mode", style = MaterialTypography.bodyMedium)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = if (DemoMode.isDemoMode()) {
+                            androidx.compose.material.icons.FontAwesome5.Sun
+                        } else {
+                            androidx.compose.material.icons.FontAwesome5.Moon
+                        },
+                        contentDescription = "Toggle demo mode"
                     )
                 }
             }
@@ -112,6 +163,57 @@ fun SettingsScreen() {
                     )
                 }
             }
+
+            // Clear behavioral history action
+            OutlinedButton(
+                onClick = { showClearConfirmation = true },
+                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+            ) {
+                HStack(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = 12.dp
+                ) {
+                    Text("clear_history".provideAsString(), style = MaterialTypography.bodyMedium)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = androidx.compose.material.icons.FontAwesome5.Trash,
+                        contentDescription = "Clear behavioral history"
+                    )
+                }
+            }
+
+            // Confirmation dialog for clearing history
+            if (showClearConfirmation) {
+                OutlinedButton(
+                    onClick = {
+                        runCanceled {
+                            clearBehavioralHistory()
+                            showClearConfirmation = false
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+                ) {
+                    HStack(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = 12.dp
+                    ) {
+                        Text("Yes, clear history", style = MaterialTypography.bodyMedium, contentColor = androidx.compose.ui.graphics.Color.Red)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = androidx.compose.material.icons.FontAwesome5.Check,
+                            contentDescription = "Confirmation"
+                        )
+                    }
+                }
+            }
         }
     }
+}
+
+private fun clearBehavioralHistory(appContext: androidx.compose.runtime.Context) {
+    // Clear behavioral history from SharedPreferences
+    DataStorePreferences.clearBehavioralHistory(appContext)
+    // Reset adaptive opt-in to default (enabled)
+    // Note: Behavior will restart from cold start after clearing
+    // Individual event clearing is handled via SharedPreferences
 }

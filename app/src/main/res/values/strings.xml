@@ -1,3 +1,19 @@
 <resources>
     <string name="app_name">Dynamic UI</string>
+    
+    <!-- Privacy screen strings -->
+    <string name="privacy_title">Privacy</string>
+    <string name="privacy_what_collected">What is collected</string>
+    <string name="privacy_why_collected">Why it is collected</string>
+    <string name="privacy_where_processed">Where it is processed</string>
+    <string name="privacy_how_long_stored">How long it is stored</string>
+    <string name="privacy_how_to_delete">How to delete it</string>
+    <string name="adaptive_opt_in">Adaptive UI</string>
+    <string name="adaptive_opt_in_description">Allow the app to adapt to your usage patterns</string>
+    <string name="adaptive_opt_in_disabled">Adaptive UI disabled</string>
+    <string name="adaptive_opt_in_enabled">Adaptive UI enabled</string>
+    <string name="clear_history">Clear behavioral history</string>
+    <string name="clear_history_confirm">This will delete all stored interaction events and reset the adaptive learning progress. Continue?</string>
+    <string name="clear_history_success">Behavioral history cleared</string>
+    <string name="clear_history_error">Error clearing history</string>
 </resources>

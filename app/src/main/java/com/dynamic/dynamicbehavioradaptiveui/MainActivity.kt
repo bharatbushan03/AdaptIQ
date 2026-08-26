@@ -26,7 +26,10 @@ class MainActivity : ComponentActivity() {
                     composable("notes") { NotesScreen() }
                     composable("files") { FilesScreen() }
                     composable("settings") { SettingsScreen() }
+                    composable("privacy") { PrivacyScreen(onBack = { navController.navigate("settings") }) }
                 }
+
+                DemoOverlay()
             }
         }
     }
